@@ -1,0 +1,209 @@
+From b4bce38c6005bb7091583bfc0608d4cb90057335 Mon Sep 17 00:00:00 2001
+From: LiemTruong <truongthithuyliem@gmail.com>
+Date: Thu, 16 Apr 2020 10:47:05 +0700
+Subject: [PATCH] edit threshold, save original image
+
+---
+ sliding_resnet.py | 53 +++++++++++++++++++++++++++++++----------------
+ sliding_window.py | 23 ++++++++++++++------
+ 2 files changed, 52 insertions(+), 24 deletions(-)
+
+diff --git a/sliding_resnet.py b/sliding_resnet.py
+index 1c1d880..9ccc7ce 100644
+--- a/sliding_resnet.py
++++ b/sliding_resnet.py
+@@ -12,7 +12,7 @@ import logging
+ logger = tf.get_logger()
+ logger.setLevel(logging.ERROR)
+ 
+-from tensorflow.keras.applications import vgg16, resnet, inception_v3, xception, densenet, nasnet
++from tensorflow.keras.applications import resnet
+ from tqdm import  tqdm
+ import sklearn
+ import sliding_window as sliwin
+@@ -21,16 +21,14 @@ import sliding_window as sliwin
+ 
+ 
+ @tf.function
+-def speed(img1, img2, start_point, end_point):
++def speed(img1, img2, start_point, end_point,thresh = 0.75):
+    # compute target feature map
+-   # f1 = resnet.preprocess_input(img1)
+    f1 = resnet.preprocess_input(img1)
+    f1 = model(f1)
+    f1 = tf.math.l2_normalize(f1, axis=1)
+    f1 = tf.keras.layers.Flatten()(f1)
+ 
+    # compute patch feature map
+-   # f2 = resnet.preprocess_input(img2)
+    f2 = resnet.preprocess_input(img2)
+    f2 = model(f2)
+    f2 = tf.math.l2_normalize(f2, axis=1)
+@@ -43,7 +41,7 @@ def speed(img1, img2, start_point, end_point):
+    # extract pass samples
+    # chosen_idx = tf.math.logical_and(sim > 0.75, dist < 0.45)
+    # chosen_idx = tf.where(chosen_idx)
+-   chosen_idx = tf.where(sim > 0.73)
++   chosen_idx = tf.where(sim > thresh)
+    chosen_idx = tf.keras.backend.flatten(chosen_idx)
+    chosen_img = tf.gather(img2, chosen_idx)
+    chosen_start = tf.gather(start_point, chosen_idx)
+@@ -57,10 +55,9 @@ def speed(img1, img2, start_point, end_point):
+ 
+ 
+ 
+-# Code start
+ 
+-src = '/home/anhuynh/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5_tf2'
+-dst = '/home/anhuynh/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
++src = '/home/vy/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5_tf2'
++dst = '/home/vy/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+ shutil.copy(src,dst)
+ 
+ model = resnet.ResNet50()
+@@ -71,15 +68,13 @@ num_stop = 1000
+ stop_flg = False
+ 
+ # load image
+-img_1_path = 'hit2.png'
+-
+-gsv_dir = 'GSV_Step_1_3_7/'
++img_1_path = '/media/vy/DATA/Liem/advertising/DeepPretrain/origin_image/hit2.jpg'
++view = 5
++gsv_dir = '/media/vy/DATA/Liem/advertising/DeepPretrain/sample/view{}/'.format(view)
+ gsv_names = os.listdir(gsv_dir)
+ gsv_names.sort()
+ 
+-# gsv_names = ['4.jpeg','5.jpeg']
+-
+-out_dir = 'gsv/'
++out_dir = 'view{}/'.format(view)
+ if os.path.exists(out_dir):
+    shutil.rmtree(out_dir)
+ 
+@@ -87,7 +82,7 @@ result_dir = out_dir
+ if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
+ 
+-ws_lst  = [32, 64,128, 256]
++ws_lst  = [32, 64, 128, 256]
+ 
+ for name in gsv_names:
+    img_2_path  = gsv_dir + name
+@@ -98,9 +93,13 @@ for name in gsv_names:
+ 
+    tik = time.time()
+    for ws in ws_lst:
++      if ws == 128 or ws == 256:
++         thresh = 0.73
++      else:
++         thresh = 0.8
+       # sliding window
+       stride = ws // 8
+-      ds = sliwin.sliding_generator(img_1_path, img_2_path, stride, ws, resize=224, batch_size=64)
++      ds = sliwin.sliding_generator(img_1_path, img_2_path, stride, ws, resize=224, batch_size=128)
+       print('name:',name,', win size:',ws,', num sample:', ds.patch_cnt)
+ 
+       batches = []
+@@ -120,7 +119,7 @@ for name in gsv_names:
+          img2 = tf.convert_to_tensor(img2)
+          img2 = tf.cast(img2, dtype=tf.float32)
+ 
+-         chosen_img, chosen_start, chosen_end, chosen_dist, chosen_sim = speed(img1, img2, start_point,end_point)
++         chosen_img, chosen_start, chosen_end, chosen_dist, chosen_sim = speed(img1, img2, start_point,end_point, thresh)
+          chosen_img   = chosen_img.numpy()
+          chosen_start = chosen_start.numpy()
+          chosen_end   = chosen_end.numpy()
+@@ -133,7 +132,6 @@ for name in gsv_names:
+             os.makedirs(SAVE_DIR)
+ 
+          if len(chosen_img.shape) == 3:
+-            print('Chosen img has len = 3')
+             # collect rectangle position
+             x, y = chosen_start.astype(np.int32).tolist()
+             rects.append([x,y,ws,ws])
+@@ -196,6 +194,25 @@ for name in gsv_names:
+          result_img  = cv2.rectangle(result_img, pt1=(x,y), pt2=(x_end,y_end), color=(0,0,255))
+ 
+       cv2.imwrite(result_path, result_img)
++
++   # if len(rects) == 1:
++   #    result_path = result_dir + name.split('.')[0] + '_result.jpg'
++   #    result_img  = cv2.imread(img_2_path)
++   #    x, y, w, h = rects[0]
++   #    x_end = x + w
++   #    y_end = y + h
++   #    result_img  = cv2.rectangle(result_img, pt1=(x,y), pt2=(x_end,y_end), color=(0,0,255))
++   #    cv2.imwrite(result_path, result_img)
++   #
++   # if len(rects) > 1:
++   #    result_path = result_dir + name.split('.')[0] + '_result.jpg'
++   #    result_img  = cv2.imread(img_2_path)
++   #    rects, weights = cv2.groupRectangles(rects,1,1.5)
++   #    x, y, w, h = rects[0]
++   #    x_end = x + w
++   #    y_end = y + h
++   #    result_img  = cv2.rectangle(result_img, pt1=(x,y), pt2=(x_end,y_end), color=(0,0,255))
++   #    cv2.imwrite(result_path, result_img)
+    dbg_file.close()
+ 
+ 
+diff --git a/sliding_window.py b/sliding_window.py
+index fc298ca..80470be 100644
+--- a/sliding_window.py
++++ b/sliding_window.py
+@@ -6,7 +6,7 @@ from PIL import Image, ImageOps
+ import cv2
+ from tensorflow.keras.preprocessing import image
+ 
+-# sdasd
++
+ 
+ def load_img(path, resize=None):
+    img = Image.open(path)
+@@ -106,14 +106,25 @@ def generator(img_1, img_2, patch_points, win_size, resize, batch_size):
+ class sliding_generator():
+    def __init__(self, img_1_path, img_2_path, step_size, window_size, resize=None, batch_size=1):
+       img_1 = image.load_img(img_1_path)
+-      img_1 = img_1.convert("RGB")
++      # img_1 = img_1.convert("RGB")
++      # img_1 = image.img_to_array(img_1)
++      # img_1 = cv2.resize(img_1, (window_size, window_size), interpolation=cv2.INTER_AREA)
++      # save_org = "/media/vy/DATA/Liem/advertising/DeepPretrain/GSV_Step/resize_org/hits.jpg"
++      # cv2.imwrite(save_org,img_1)
++      # img_1 = image.load_img(save_org, target_size=(224, 224))
++
++
+       img_1 = img_1.resize((window_size, window_size), Image.ANTIALIAS)
+-      img_1 = img_1.resize((resize,resize), Image.NEAREST)
++      # img_1 = img_1.resize((resize, resize), Image.NEAREST)
++
++      img_1 = img_1.save("temp.jpg")
++      img_1 = image.load_img("temp.jpg",target_size=(224, 224))
++
+       img_1 = image.img_to_array(img_1)
+ 
+ 
+       img_2 = image.load_img(img_2_path)
+-      img_2 = img_2.convert("RGB")
++      # img_2 = img_2.convert("RGB")
+       img_2 = image.img_to_array(img_2)
+ 
+       win_h = win_w = window_size
+@@ -130,11 +141,11 @@ class sliding_generator():
+ 
+ 
+ if __name__ == "__main__":
+-   gsv_dir = 'GSV_Step_1_3_7/'
++   gsv_dir = '../GSV_Step_1_3_7/'
+    gsv_names = os.listdir(gsv_dir)
+    gsv_names.sort()
+ 
+-   out_dir = 'out/'
++   out_dir = 'gsv/'
+ 
+    ws_lst  = [256, 128, 64, 32]
+ 
+-- 
+2.17.1
+
