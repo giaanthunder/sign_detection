@@ -6,7 +6,7 @@ from PIL import Image, ImageOps
 import cv2
 from tensorflow.keras.preprocessing import image
 
-
+# sdasd
 
 def load_img(path, resize=None):
    img = Image.open(path)
