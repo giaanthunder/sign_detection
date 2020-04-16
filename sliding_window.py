@@ -6,7 +6,7 @@ from PIL import Image, ImageOps
 import cv2
 from tensorflow.keras.preprocessing import image
 
-# sdasd
+
 
 def load_img(path, resize=None):
    img = Image.open(path)
@@ -106,14 +106,25 @@ def generator(img_1, img_2, patch_points, win_size, resize, batch_size):
 class sliding_generator():
    def __init__(self, img_1_path, img_2_path, step_size, window_size, resize=None, batch_size=1):
       img_1 = image.load_img(img_1_path)
-      img_1 = img_1.convert("RGB")
+      # img_1 = img_1.convert("RGB")
+      # img_1 = image.img_to_array(img_1)
+      # img_1 = cv2.resize(img_1, (window_size, window_size), interpolation=cv2.INTER_AREA)
+      # save_org = "/media/vy/DATA/Liem/advertising/DeepPretrain/GSV_Step/resize_org/hits.jpg"
+      # cv2.imwrite(save_org,img_1)
+      # img_1 = image.load_img(save_org, target_size=(224, 224))
+
+
       img_1 = img_1.resize((window_size, window_size), Image.ANTIALIAS)
-      img_1 = img_1.resize((resize,resize), Image.NEAREST)
+      # img_1 = img_1.resize((resize, resize), Image.NEAREST)
+
+      img_1 = img_1.save("temp.jpg")
+      img_1 = image.load_img("temp.jpg",target_size=(224, 224))
+
       img_1 = image.img_to_array(img_1)
 
 
       img_2 = image.load_img(img_2_path)
-      img_2 = img_2.convert("RGB")
+      # img_2 = img_2.convert("RGB")
       img_2 = image.img_to_array(img_2)
 
       win_h = win_w = window_size
@@ -130,11 +141,11 @@ class sliding_generator():
 
 
 if __name__ == "__main__":
-   gsv_dir = 'GSV_Step_1_3_7/'
+   gsv_dir = '../GSV_Step_1_3_7/'
    gsv_names = os.listdir(gsv_dir)
    gsv_names.sort()
 
-   out_dir = 'out/'
+   out_dir = 'gsv/'
 
    ws_lst  = [256, 128, 64, 32]
 
