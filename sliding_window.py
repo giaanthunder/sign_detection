@@ -91,7 +91,7 @@ def generator(img_1, img_2, patch_points, win_size, resize, batch_size):
       start_point = np.asarray([x_start,y_start])
       end_point   = np.asarray([x_end,y_end])
       batch_1.append(np.copy(img_1))
-      batch_2.append(img_2)
+      batch_2.append(img2)
       batch_3.append(start_point)
       batch_4.append(end_point)
 
