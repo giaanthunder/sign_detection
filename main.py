@@ -55,7 +55,7 @@ def get_overlap_rect(boxes, rects):
 image_T_path_qatm = "hit4.jpg"
 image_T_path_sliding = "hit2.jpg"
 
-folder = 'test/'
+folder = '/media/vy/DATA/Liem/advertising/QATM/result_high/'
 # folder = 'gsv_selenium_1/'
 
 imgs = os.listdir(folder)
@@ -88,9 +88,10 @@ for name in imgs:
     image_S_pil = Image.open(image_S_path)
     image_S_pil = image_S_pil.convert('RGB')
     image_S_pil = np.array(image_S_pil)
-
-    qatm_boxes = qatm_model.get_qatm_boxes(image_T.copy(), image_S.copy(), ws_list=[64,128])
-    slires_boxes = slires_model.get_slires_boxes(image_T_pil.copy(), image_S_pil.copy(), ws_lst = [128,256])
+    t_qatm = time.time()
+    qatm_boxes = qatm_model.get_qatm_boxes(image_T.copy(), image_S.copy(), ws_list=[64,128,256])
+    print ("time qatm : ", time.time() - t_qatm)
+    slires_boxes = slires_model.get_slires_boxes(image_T_pil.copy(), image_S_pil.copy(), ws_lst = [128,256],thresh_lst=[0.5,0.5])
 
     image_plot = image_S.copy()
 

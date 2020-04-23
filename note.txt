@@ -1,0 +1,4 @@
+ws qatm [64,128]
+ws sliding [128,256]
+image 640x640
+time 21s

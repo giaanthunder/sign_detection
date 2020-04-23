@@ -12,17 +12,12 @@ from utils import compute_score, locate_bbox
 from pathlib import Path
 import tensorflow.keras.backend as K
 from tensorflow.keras.applications import resnet
+import math
 
 
 class qatm():
     def __init__(self):
         vgg19 = tf.keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
-
-        # src = '/home/anhuynh/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5_tf2'
-        # dst = '/home/anhuynh/.keras/models/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
-        # shutil.copy(src,dst)
-        # extractor = resnet.ResNet50()
-        # extractor = tf.keras.Model(inputs=extractor.input, outputs=extractor.get_layer('avg_pool').output)
         input_ = vgg19.input
         conv1_2 = vgg19.get_layer('block1_conv2').output
         conv3_4 = vgg19.get_layer('block3_conv4').output
@@ -47,6 +42,7 @@ class qatm():
         boxes = []
         scores = []
         for ws in ws_list:
+            print ("ws in qatm:", ws)
             # image_plot = image.copy()
             start = time.time()
             template = cv2.resize(template,(ws,ws))
@@ -59,12 +55,13 @@ class qatm():
             else:
                 # used when image is too big
                 val = self.model_bkup.predict([template_, image_])
-
             # compute geometry average on score map
-            val = np.log(val)
-            gray = val[0, :, :, 0]
-            gray = cv2.resize(gray, (image.shape[1], image.shape[0]))
-            score = compute_score(gray, w, h)
+            val = tf.math.log(val)
+            val = tf.image.resize(val, size=(image.shape[1], image.shape[0]))
+            # val = np.log(val)
+            # gray = val[0, :, :, 0]
+            # gray = cv2.resize(gray, (image.shape[1], image.shape[0]))
+            score = compute_score_tf(val, w, h)
             score[score > -1e-7] = score.min()
             score = np.exp(score / (h * w))  # reverse number range back after computing geometry average
             x, y, w, h = locate_bbox(score, w, h)
@@ -74,7 +71,18 @@ class qatm():
             scores.append(score)
         return boxes
 
-
+def compute_score_tf( x, w, h ):
+    # score of response strength
+    # k = np.ones( (h, w) )
+    k = tf.ones((h,w,1,1))
+    score = tf.keras.backend.conv2d(x,k,padding='same')
+    score = score[0, :, :, 0].numpy()
+    # score = convolve( x, k, mode='wrap' )
+    score[:, :w//2] = 0
+    score[:, math.ceil(-w/2):] = 0
+    score[:h//2, :] = 0
+    score[math.ceil(-h/2):, :] = 0
+    return score
 def create_model(featex, alpha=1.):
     T = Input((None, None, 3), name='template_input')
     I = Input((None, None, 3), name='image_input')
