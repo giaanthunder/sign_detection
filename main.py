@@ -9,7 +9,12 @@ import numpy as np
 
 def draw_boxes(image, boxes, color=(0,255,0)):
     for box in boxes:
-        x, y, w, h = box
+        if len(box) == 5:
+            x, y, w, h,score = box
+            text = str(score)
+            # cv2.putText(image,text,(int(x),int(y)),cv2.FONT_HERSHEY_SIMPLEX,0.5,(255, 0, 0),2)
+        else:
+            x, y, w, h = box
         x_end = x + w
         y_end = y + h
         image  = cv2.rectangle(image, pt1=(x,y), pt2=(x_end,y_end), color=color)
@@ -38,30 +43,42 @@ def add_rectangles(rect1, rect2):
     return x,y,w,h
 
 def get_overlap_rect(boxes, rects):
+    rect_merge = None
+    overlap1 = 0.1
     for box in boxes:
+        if len(box) == 5:
+            box = box[:4]
         for rect in rects:
             overlap = overlap_rectangles(box, rect)
-            if rect[2] <= 128:
-                if overlap > 0.1:
-                    x,y,w,h = add_rectangles(box, rect)
-                    return [x,y,w,h]
-            else:
-                x,y,w,h = rect[0], rect[1], rect[2], rect[3]
-                return [x,y,w,h]
-    return None
+            if overlap >overlap1:
+                overlap1 = overlap
+                rect_merge = add_rectangles(box, rect)
+    if rect_merge is None:
+        for box in boxes:
+            score = box[-1]
+            if score > 0.085:
+                rect_merge = box[:4]
+            # if rect[2] <= 128:
+            #     if overlap > 0.1:
+            #         x,y,w,h = add_rectangles(box, rect)
+            #         return [x,y,w,h]
+            # else:
+            #     x,y,w,h = rect[0], rect[1], rect[2], rect[3]
+            #     return [x,y,w,h]
+    return rect_merge
 
 
 
-image_T_path_qatm = "hit4.jpg"
-image_T_path_sliding = "hit2.jpg"
+image_T_path_qatm = "./origin/img1.jpg"
+image_T_path_sliding = "./origin/img4.jpg"
 
-folder = '/media/vy/DATA/Liem/advertising/QATM/result_high/'
+folder = '/media/vy/DATA/Liem/advertising/merge_code/fake_ads_gsv/'
 # folder = 'gsv_selenium_1/'
 
 imgs = os.listdir(folder)
 imgs.sort()
 
-result_dir = "./result"
+result_dir = "./result_Yakult_fake"
 if not Path(result_dir).is_dir():
     os.mkdir(result_dir)
 
@@ -89,9 +106,9 @@ for name in imgs:
     image_S_pil = image_S_pil.convert('RGB')
     image_S_pil = np.array(image_S_pil)
     t_qatm = time.time()
-    qatm_boxes = qatm_model.get_qatm_boxes(image_T.copy(), image_S.copy(), ws_list=[64,128,256])
-    print ("time qatm : ", time.time() - t_qatm)
-    slires_boxes = slires_model.get_slires_boxes(image_T_pil.copy(), image_S_pil.copy(), ws_lst = [128,256],thresh_lst=[0.5,0.5])
+    qatm_boxes = qatm_model.get_qatm_boxes(image_T.copy(), image_S.copy(), ws_list=[32,64,128,256])
+    print ("qatm time :", time.time() - t_qatm)
+    slires_boxes = slires_model.get_slires_boxes(image_T_pil.copy(), image_S_pil.copy(), ws_lst = [32,64,128,256,384,512],thresh_lst=[0.8,0.8,0.73,0.73,0.73,0.73])
 
     image_plot = image_S.copy()
 

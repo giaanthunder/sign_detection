@@ -11,28 +11,51 @@ from models2 import QATM, MyNormLayer
 from utils import compute_score, locate_bbox
 from pathlib import Path
 import tensorflow.keras.backend as K
-from tensorflow.keras.applications import resnet
+# from tensorflow.keras.applications import resnet
 import math
 
 
 class qatm():
     def __init__(self):
-        vgg19 = tf.keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
-        input_ = vgg19.input
-        conv1_2 = vgg19.get_layer('block1_conv2').output
-        conv3_4 = vgg19.get_layer('block3_conv4').output
+        resnet = tf.keras.applications.resnet.ResNet50(include_top = False, weights = 'imagenet')
+        input_ = resnet.input
+        conv1_2 = resnet.get_layer('conv2_block2_out').output
+        conv3_4  = resnet.get_layer('conv2_block3_out').output
+        # conv1_2 = resnet.get_layer('conv4_block2_out').output
+        # conv3_4  = resnet.get_layer('conv4_block4_out').output
         conv3_4 = Lambda( lambda x: tf.image.resize( x[0], size=(tf.shape(x[1])[1], tf.shape(x[1])[2]),method='bilinear'), name='resized_image' )( [conv3_4, conv1_2] )
-        concat = Concatenate()( [conv1_2, conv3_4] )
-        featex = Model( [input_], [concat], name='featex' )
-        input_ = vgg19.input
-        conv1_2 = vgg19.get_layer('block1_conv2').output
-        conv3_4 = vgg19.get_layer('block3_conv4').output
-        conv1_2 = Lambda( lambda x: tf.image.resize( x[1], size=(tf.shape(x[0])[1], tf.shape(x[0])[2]), method='bilinear'), name='resized_image' )( [conv3_4, conv1_2] )
-        concat = Concatenate()( [conv1_2, conv3_4] )
-        featex2 = Model( [input_], [concat], name='featex2' )
+        concat = Concatenate()([conv1_2, conv3_4])
+        featex = Model([input_], [concat], name='featex')
 
-        self.model = create_model( featex , alpha=25)
-        self.model_bkup = create_model( featex2 , alpha=25)
+        input_ = resnet.input
+        conv1_2 = resnet.get_layer('conv2_block1_1_relu').output
+        conv3_4 = resnet.get_layer('conv3_block3_out').output
+        conv1_2 = Lambda(
+            lambda x: tf.image.resize(x[1], size=(tf.shape(x[0])[1], tf.shape(x[0])[2]), method='bilinear'),
+            name='resized_image')([conv3_4, conv1_2])
+        concat = Concatenate()([conv1_2, conv3_4])
+        featex2 = Model([input_], [concat], name='featex2')
+
+        self.model = create_model(featex, alpha=25)
+        self.model_bkup = create_model(featex2, alpha=25)
+
+        # exit()
+        # vgg19 = tf.keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
+        # input_ = vgg19.input
+        # conv1_2 = vgg19.get_layer('block1_conv2').output
+        # conv3_4 = vgg19.get_layer('block3_conv4').output
+        # conv3_4 = Lambda( lambda x: tf.image.resize( x[0], size=(tf.shape(x[1])[1], tf.shape(x[1])[2]),method='bilinear'), name='resized_image' )( [conv3_4, conv1_2] )
+        # concat = Concatenate()( [conv1_2, conv3_4] )
+        # featex = Model( [input_], [concat], name='featex' )
+        # input_ = vgg19.input
+        # conv1_2 = vgg19.get_layer('block1_conv2').output
+        # conv3_4 = vgg19.get_layer('block3_conv4').output
+        # conv1_2 = Lambda( lambda x: tf.image.resize( x[1], size=(tf.shape(x[0])[1], tf.shape(x[0])[2]), method='bilinear'), name='resized_image' )( [conv3_4, conv1_2] )
+        # concat = Concatenate()( [conv1_2, conv3_4] )
+        # featex2 = Model( [input_], [concat], name='featex2' )
+        #
+        # self.model = create_model( featex , alpha=25)
+        # self.model_bkup = create_model( featex2 , alpha=25)
 
     def get_qatm_boxes(self, image_T, image_S, ws_list=[64,128]):
         print('QATM')
@@ -64,10 +87,12 @@ class qatm():
             score = compute_score_tf(val, w, h)
             score[score > -1e-7] = score.min()
             score = np.exp(score / (h * w))  # reverse number range back after computing geometry average
+            max_score = np.max(score)
+            print(max_score)
             x, y, w, h = locate_bbox(score, w, h)
             x = int(x)
             y = int(y)
-            boxes.append([x,y,w,h])
+            boxes.append([x,y,w,h,max_score])
             scores.append(score)
         return boxes
 
